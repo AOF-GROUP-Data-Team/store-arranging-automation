@@ -2,20 +2,18 @@
 # ==============================================================================
 # main.py -- Storage QC daily report (form 573399)
 #
-# Pulls a day's photos, scores them with the reason models, and produces:
-#     reports/storage_<date>.html   full report with thumbnails
-#     reports/storage_<date>.pdf    same, hyperlinks clickable
-#     reports/storage_<date>.docx   Word version
-#     reports/storage_<date>.csv    flat data for tracking repeats
-# then emails the Arabic summary table as the message body with the PDF and
-# Word attached.
+# EMAIL BODY : the Arabic summary table, nothing else
+# PDF / HTML / DOCX : the photo cards with risk %, reason and Zenput links
+# CSV : flat data for tracking repeat offenders
 #
 # Repo layout:
-#     models/field_9199839/reason_models_9199839.joblib
-#     models/field_9199840/reason_models_9199840.joblib
-#     models/field_9199841/reason_models_9199841.joblib
+#     main.py
+#     models/reason_models_9199839.joblib
+#     models/reason_models_9199840.joblib
+#     models/reason_models_9199841.joblib
+#     .github/workflows/storage-qc.yml
 #
-# Only two secrets: ZENPUT_TOKEN and EMAIL_PASSWORD.
+# Secrets: ZENPUT_TOKEN, EMAIL_PASSWORD
 # ==============================================================================
 
 import os, ast, csv, ssl, base64, hashlib, smtplib, warnings, re
@@ -36,14 +34,14 @@ from PIL import Image, ImageOps
 warnings.filterwarnings("ignore")
 
 # ------------------------------- EMAIL ----------------------------------------
-SENDER_EMAIL   = "aof.group.auto@gmail.com"
-SENDER_NAME    = "Business Intelligence"
-SENDER_PASS    = os.environ.get("EMAIL_PASSWORD", "")     # app password, secret
-SMTP_HOST      = "smtp.gmail.com"
-SMTP_PORT      = 587
+SENDER_EMAIL = "aof.group.auto@gmail.com"
+SENDER_NAME  = "Business Intelligence"
+SENDER_PASS  = os.environ.get("EMAIL_PASSWORD", "")
+SMTP_HOST    = "smtp.gmail.com"
+SMTP_PORT    = 587
 
-RECIPIENTS     = ["o.salahaddin@aofgroup.com"]
-CC             = ["a.alsalem@aofgroup.com"]
+RECIPIENTS   = ["o.salahaddin@aofgroup.com"]
+CC           = ["a.alsalem@aofgroup.com"]
 
 # ------------------------------- CONFIG ---------------------------------------
 API_TOKEN   = os.environ.get("ZENPUT_TOKEN", "")
@@ -281,7 +279,8 @@ print(f"downloaded {len(jobs)}")
 
 
 # ----------------------------- SCORING ----------------------------------------
-proc  = AutoImageProcessor.from_pretrained(MODEL_NAME)
+# use_fast=False keeps this on PIL and avoids the torchvision dependency
+proc  = AutoImageProcessor.from_pretrained(MODEL_NAME, use_fast=False)
 model = AutoModel.from_pretrained(MODEL_NAME).eval()
 
 
@@ -335,7 +334,7 @@ flagged = [j for j in jobs if j["flagged"]]
 print(f"{len(flagged)} flagged of {len(jobs)}")
 
 
-# --------------------------- ARABIC TABLE -------------------------------------
+# ------------------- ARABIC TABLE -- EMAIL BODY ONLY --------------------------
 def arabic_table_html():
     rows = []
     for fid, (fname, en) in FIELDS.items():
@@ -380,7 +379,7 @@ def arabic_table_html():
 AR_TABLE = arabic_table_html()
 
 
-# ------------------------------ HTML ------------------------------------------
+# --------------------- HTML REPORT -- PHOTO CARDS ONLY ------------------------
 def thumb_b64(p, px=250):
     try:
         im = ImageOps.exif_transpose(Image.open(p)).convert("RGB")
@@ -448,7 +447,6 @@ HTML = (f'<html><head><meta charset="utf-8"><style>@page{{size:A4;margin:14mm}}'
         f'body{{font:13px Arial,sans-serif}}</style></head><body>'
         f'<h1 style="font-size:20px">Storage checks — {PRETTY}</h1>'
         f'<p>{len(flagged)} of {len(jobs)} photos flagged.</p>'
-        f'<div style="margin:18px 0">{AR_TABLE}</div>'
         f'{"".join(sections)}</body></html>')
 
 html_path = f"{OUT_DIR}/storage_{DAY}.html"
@@ -468,21 +466,13 @@ except Exception as e:
     pdf_path = None
 
 
-# ------------------------------- DOCX -----------------------------------------
+# ------------------------- DOCX -- PHOTO CARDS ONLY ---------------------------
 docx_path = f"{OUT_DIR}/storage_{DAY}.docx"
 try:
     from docx import Document
     from docx.shared import Inches
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
-    from docx.enum.table import WD_TABLE_ALIGNMENT
     from docx.oxml.ns import qn
     from docx.oxml import OxmlElement
-
-    def shade(cell, hexcolour):
-        el = OxmlElement("w:shd")
-        el.set(qn("w:val"), "clear")
-        el.set(qn("w:fill"), hexcolour.lstrip("#"))
-        cell._tc.get_or_add_tcPr().append(el)
 
     def add_link(paragraph, url, text):
         part = paragraph.part
@@ -504,32 +494,6 @@ try:
     doc = Document()
     doc.add_heading(f"Storage checks — {PRETTY}", level=1)
     doc.add_paragraph(f"{len(flagged)} of {len(jobs)} photos flagged.")
-
-    rows_data = []
-    for fid, (fname, en) in FIELDS.items():
-        items = [j for j in flagged if j["field_id"] == fid]
-        per = defaultdict(list)
-        for j in sorted(items, key=lambda x: (x["prank"], -x["risk"])):
-            per[j["code"]].append(j["ar_note"])
-        for code, notes in per.items():
-            note = " و".join(dict.fromkeys(x for s in notes for x in s.split(" و")))
-            rows_data.append((en, note, code, COLOURS[fid][0]))
-
-    if rows_data:
-        t = doc.add_table(rows=1, cols=3)
-        t.style = "Table Grid"
-        t.alignment = WD_TABLE_ALIGNMENT.CENTER
-        hdr = t.rows[0].cells
-        for i, txt in enumerate(["كود الفرع", "ملاحظات المراجعة", "مكان التخزين"]):
-            hdr[i].text = txt
-            shade(hdr[i], "#D9D9D9")
-            hdr[i].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-        for en, note, code, bg in rows_data:
-            c = t.add_row().cells
-            c[0].text, c[1].text, c[2].text = code, note, en
-            shade(c[0], bg); shade(c[1], NOTE_BG); shade(c[2], bg)
-            for cc in c:
-                cc.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     for fid, (fname, en) in FIELDS.items():
         sub = [j for j in flagged if j["field_id"] == fid]
@@ -581,17 +545,17 @@ if not SENDER_PASS:
     print("EMAIL_PASSWORD not set, skipping email")
 else:
     msg = MIMEMultipart("mixed")
-    msg["Subject"] = f"مراجعة تنظيم الفروع — {PRETTY}"
+    msg["Subject"] = f"مراجعة مخازن الفروع — {PRETTY}"
     msg["From"] = formataddr((SENDER_NAME, SENDER_EMAIL))
     msg["To"] = ", ".join(RECIPIENTS)
     if CC:
         msg["Cc"] = ", ".join(CC)
 
     body = (f'<html><body style="font:14px Tahoma,Arial">'
-            f'<p dir="rtl">ملاحظات مراجعة صور تنظيم الفروع ليوم {PRETTY}:</p>'
+            f'<p dir="rtl">ملاحظات مراجعة صور المخازن ليوم {PRETTY}:</p>'
             f'{AR_TABLE}'
             f'<p dir="rtl" style="font-size:12px;color:#777">'
-            f'.</p>'
+            f'التقرير المرفق يحتوي على الصور وروابط النماذج في زنبت.</p>'
             f'</body></html>')
     msg.attach(MIMEText(body, "html", "utf-8"))
 
@@ -606,6 +570,6 @@ else:
         s.starttls(context=ctx)
         s.login(SENDER_EMAIL, SENDER_PASS)
         s.sendmail(SENDER_EMAIL, RECIPIENTS + CC, msg.as_string())
-    print(f"emailed {len(RECIPIENTS)} recipient(s), {len(CC)} cc")
+    print(f"emailed {len(RECIPIENTS)} to, {len(CC)} cc")
 
 print("done")
