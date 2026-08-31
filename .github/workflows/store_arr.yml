@@ -3,7 +3,7 @@ name: Storage QC daily
 on:
   schedule:
     # 05:30 UTC = 08:30 KSA, after the morning checklists are submitted
-    - cron: "30 5 * * *"
+    - cron: "30 7 * * *"
   workflow_dispatch:
     inputs:
       report_date:
