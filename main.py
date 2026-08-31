@@ -545,14 +545,14 @@ if not SENDER_PASS:
     print("EMAIL_PASSWORD not set, skipping email")
 else:
     msg = MIMEMultipart("mixed")
-    msg["Subject"] = f"مراجعة مخازن الفروع — {PRETTY}"
+    msg["Subject"] = f"مراجعة تنظيم الفروع — {PRETTY}"
     msg["From"] = formataddr((SENDER_NAME, SENDER_EMAIL))
     msg["To"] = ", ".join(RECIPIENTS)
     if CC:
         msg["Cc"] = ", ".join(CC)
 
     body = (f'<html><body style="font:14px Tahoma,Arial">'
-            f'<p dir="rtl">ملاحظات مراجعة صور المخازن ليوم {PRETTY}:</p>'
+            f'<p dir="rtl">ملاحظات مراجعة صور تنظيم الفروع لامس {PRETTY}:</p>'
             f'{AR_TABLE}'
             f'<p dir="rtl" style="font-size:12px;color:#777">'
             f'التقرير المرفق يحتوي على الصور وروابط النماذج في زنبت.</p>'
