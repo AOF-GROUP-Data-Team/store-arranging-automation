@@ -109,7 +109,7 @@ from transformers import AutoImageProcessor, AutoModel
 
 BUNDLES = {}
 for fid, (fname, _) in FIELDS.items():
-    p = f"{MODEL_DIR}/field_{fid}/reason_models_{fid}.joblib"
+    p = f"{MODEL_DIR}/reason_models_{fid}.joblib"
     if not os.path.exists(p):
         print(f"  !! missing {p}")
         continue
