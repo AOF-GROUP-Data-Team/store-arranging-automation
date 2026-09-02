@@ -3,7 +3,7 @@ name: Storage QC daily
 on:
   schedule:
     # 05:30 UTC = 08:30 KSA, after the morning checklists are submitted
-    - cron: "30 7 * * *"
+    - cron: "30 5 * * *"
   workflow_dispatch:
     inputs:
       report_date:
@@ -23,14 +23,17 @@ jobs:
         with:
           python-version: "3.11"
 
-      # WeasyPrint rendering libs; fonts-noto covers the Arabic table
+      # WeasyPrint rendering libs. fonts-noto-core covers Arabic; the full
+      # fonts-noto metapackage is hundreds of MB and can stall on a slow mirror.
       - name: System packages
+        timeout-minutes: 5
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq \
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+            --no-install-recommends \
             libpango-1.0-0 libpangoft2-1.0-0 libcairo2 \
             libgdk-pixbuf-2.0-0 libffi-dev shared-mime-info \
-            fonts-noto fonts-noto-core
+            fonts-noto-core
 
       # DINOv2 weights are ~350MB; cached after the first run
       - name: Cache HuggingFace models
@@ -40,14 +43,15 @@ jobs:
           key: hf-dinov2-base-v1
 
       - name: Python packages
+        timeout-minutes: 10
         run: |
           python -m pip install --upgrade pip
-          # torchvision is required by AutoImageProcessor; CPU wheels only
-          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install transformers joblib scikit-learn numpy pillow \
                       requests pytz weasyprint python-docx
 
       - name: Build and send report
+        timeout-minutes: 20
         env:
           ZENPUT_TOKEN:   ${{ secrets.ZENPUT_TOKEN }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
