@@ -40,7 +40,7 @@ SENDER_PASS  = os.environ.get("EMAIL_PASSWORD", "")
 SMTP_HOST    = "smtp.gmail.com"
 SMTP_PORT    = 587
 
-RECIPIENTS   = ["m.emad@aofgroup.com","a.omara@aofgroup.com","m.alhuaydar@aofgroup.com","m.alsaghir@aofgroup.com","n.joshe@aofgroup.com","a.banafe@aofgroup.com",
+RECIPIENTS   = ["m.emad@aofgroup.com","a.omara@aofgroup.com","m.alhuaydar@aofgroup.com","m.alfadhil@aofgroup.com","o.aljawhari@aofgroup.com","m.alsaghir@aofgroup.com","n.joshe@aofgroup.com","a.banafe@aofgroup.com",
     "i.mostafa@aofgroup.com","m.alghazali@aofgroup.com","n.alzahrani@aofgroup.com","s.poudel@aofgroup.com","m.emad@aofgroup.com",
     "a.suliman@aofgroup.com","a.alarabi@aofgroup.com","s.mansuri@aofgroup.com","m.suhail@aofgroup.com"]
 CC           = ["a.alsalem@aofgroup.com","o.salahaddin@aofgroup.com","omar@aofgroup.com","m.hejazi@aofgroup.com"]
